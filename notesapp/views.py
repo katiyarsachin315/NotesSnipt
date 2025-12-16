@@ -9,21 +9,26 @@ from notesapp.permissions import IsAdmin , IsAdminOrOwner
 
 class NoteCreateView(APIView):
     permission_classes = [IsAuthenticated]
-    
+
     def post(self, request):
         serializer = NoteSerializer(data=request.data)
-        
+
         if serializer.is_valid():
             serializer.save(user=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
+            return Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED
+            )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 class NotesListView(APIView):
-    permission_classes = [AllowAny]
-    
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         notes = Note.objects.all()
         serializer = NoteSerializer(notes, many=True)
@@ -47,8 +52,8 @@ class NoteEditView(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-      
+
+
 class NoteDeleteView(APIView):
     permission_classes = [IsAuthenticated, IsAdmin]
 

@@ -21,9 +21,10 @@ class CustomUser(AbstractBaseUser):
     full_name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=255)
+    is_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_admin = models.BooleanField(default=False)
-    
+
     # Required fields for AbstractBaseUser
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['full_name','password']

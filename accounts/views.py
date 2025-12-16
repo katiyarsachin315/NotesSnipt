@@ -28,7 +28,7 @@ class AdminSignupView(APIView):
             serializer.save()
             return Response({"message": "Admin user created"}, status=201)
         return Response(serializer.errors, status=400)
-    
+
 class AdminLoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -39,7 +39,7 @@ class AdminLoginView(APIView):
             token, created = Token.objects.get_or_create(user=user)
             return Response({"token": token.key}, status=200)
         return Response(serializer.errors, status=400)
-    
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -47,25 +47,33 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data
+
             token, created = Token.objects.get_or_create(user=user)
-            return Response({"token": token.key}, status=200)
+
+            return Response({
+                "id": user.id,
+                "full_name": user.full_name,  # or user.full_name
+                "email": user.email,
+                "token": token.key
+            }, status=200)
+
         return Response(serializer.errors, status=400)
-    
-    
-    
+
+
+
 class ForgotPasswordView(APIView):
-    permission_classes = [AllowAny]  
-    
+    permission_classes = [AllowAny]
+
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         if serializer.is_valid():
             return Response({"message": "Email verified. You can now reset your password.","email_verified": True}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    
+
+
 class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
-    
+
     def post(self,request):
         serializer = ResetPasswordSerializer(data=request.dat)
         if serializer.is_valid():
@@ -75,4 +83,3 @@ class ResetPasswordView(APIView):
             except CustomUser.DoesNotExist:
                 return Response({"error": "User with this email does not exist."}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-                
