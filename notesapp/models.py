@@ -14,9 +14,9 @@ class Note(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['title'],
+                fields=['title', 'user'],
                 condition=Q(is_deleted=False),
-                name='unique_active_note_title'
+                name='unique_active_note_title_per_user'
             )
         ]
 

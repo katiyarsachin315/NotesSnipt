@@ -3,7 +3,7 @@ from notesapp.models import Note
 
 class NoteSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
-    title = serializers.CharField(max_length=255)
+    title = serializers.CharField(max_length=100)
     description = serializers.CharField(
         max_length=500, required=False, allow_blank=True
     )
@@ -14,20 +14,28 @@ class NoteSerializer(serializers.Serializer):
     is_deleted = serializers.BooleanField(read_only=True)
 
     def validate_title(self, value):
-        queryset = Note.objects.filter(title=value, is_deleted=False)
+        request = self.context.get('request')
+        user = request.user if request else None
 
-        # Update ke case me current instance exclude
+        queryset = Note.objects.filter(
+            title=value,
+            user=user,
+            is_deleted=False
+        )
+
+        # Update case → exclude current note
         if self.instance:
             queryset = queryset.exclude(id=self.instance.id)
 
         if queryset.exists():
             raise serializers.ValidationError(
-                "Note with this title already exists."
+                "You already have a note with this title."
             )
 
         return value
 
     def create(self, validated_data):
+        validated_data['user'] = self.context['request'].user
         return Note.objects.create(**validated_data)
 
     def update(self, instance, validated_data):

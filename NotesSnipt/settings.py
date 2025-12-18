@@ -141,3 +141,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# SMTP Email send setup
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'pythonfullstack2k21@gmail.com' #Host email from which want to send mail
+EMAIL_HOST_PASSWORD = 'fvvw nhfr qbwd npon' # Create a app in your gmail account and that generate a password
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
