@@ -1,9 +1,17 @@
+asgiref==3.11.0
+certifi==2025.11.12
+charset-normalizer==3.4.4
 Django==5.0
-djangorestframework==3.16.1
 django-cors-headers==4.9.0
+djangorestframework==3.16.1
+gunicorn==21.2.0
+idna==3.11
+packaging==25.0
 PyJWT==2.8.0
-requests==2.29.0
 python-dateutil==2.9.0.post0
+python-dotenv==1.2.1
 pytz==2024.1
+requests==2.29.0
+six==1.17.0
 sqlparse==0.4.4
-gunicorn==21.2.0    # optional, not required for PythonAnywhere but harmless to keep
+urllib3==1.26.20

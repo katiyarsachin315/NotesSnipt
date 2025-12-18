@@ -2,6 +2,7 @@
 myenv/
 venv/
 env/
+.env
 .venv/
 
 # Python
