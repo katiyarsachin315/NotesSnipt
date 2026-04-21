@@ -7,7 +7,7 @@ This is a Django-based backend project using SQLite.
 - Notes saving
 - Notes editing
 - Notes deletion
-- User authentication (if added)
+- User authentication
 - SQLite database
 
 ## Tech Stack
@@ -16,3 +16,5 @@ This is a Django-based backend project using SQLite.
 - Django REST Framework
 - SQLite
 - Git & GitHub
+
+Note: We need to create .env file in production for SMTP setup.
