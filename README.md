@@ -17,4 +17,4 @@ This is a Django-based backend project using SQLite.
 - SQLite
 - Git & GitHub
 
-Note: We need to create .env file in production for SMTP setup.
+Note: We need to create .env file in same location where manage.py file for production for SMTP setup as example file .env.example.
