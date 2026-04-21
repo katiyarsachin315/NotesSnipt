@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-5#%02a*)fi*@38ahssrgm-c!(x2z#k8@i)cw2woi+vu(3ky9uf
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['katiyarsachin315.pythonanywhere.com','*']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -162,3 +162,5 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
+# print("EMAIL_HOST:", os.getenv("EMAIL_HOST"))
+# print("EMAIL_USER:", os.getenv("EMAIL_HOST_USER"))

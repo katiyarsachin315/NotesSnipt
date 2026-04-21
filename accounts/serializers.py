@@ -28,6 +28,7 @@ class SignupSerializer(serializers.ModelSerializer):
 
         # 🔐 Generate token
         token = email_verification_token.make_token(user)
+        print("token:",token)
 
         # ⏱ Save time (used later for expiry)
         user.verification_sent_at = timezone.now()
