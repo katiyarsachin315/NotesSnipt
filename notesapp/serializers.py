@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from notesapp.models import Note
 
+
 class NoteSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     title = serializers.CharField(max_length=100)
@@ -23,7 +24,6 @@ class NoteSerializer(serializers.Serializer):
             is_deleted=False
         )
 
-        # Update case → exclude current note
         if self.instance:
             queryset = queryset.exclude(id=self.instance.id)
 
@@ -46,3 +46,5 @@ class NoteSerializer(serializers.Serializer):
         instance.content = validated_data.get('content', instance.content)
         instance.save()
         return instance
+    
+    

@@ -4,13 +4,20 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework.authtoken.models import Token
 from accounts.models import CustomUser
-from accounts.serializers import SignupSerializer, LoginSerializer, AdminSignupSerializer, AdminLoginSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
+from accounts.serializers import SignupSerializer, LoginSerializer, ResetPasswordSerializer, AdminLoginSerializer, AdminUserSerializer, AdminUserSerializer, AdminUserUpdateSerializer, AdminNoteUpdateSerializer
 from accounts.utils import email_verification_token
 from django.utils import timezone
 from django.urls import reverse
 from django.core.mail import send_mail
 from django.conf import settings
-
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.template.loader import render_to_string
+from django.core.mail import EmailMultiAlternatives
+from django.utils.encoding import force_bytes, force_str
+from notesapp.permissions import IsAdminOnly
+from rest_framework.pagination import PageNumberPagination
+from notesapp.models import Note
 
 class SignupView(APIView):
     permission_classes = [AllowAny]
@@ -33,21 +40,21 @@ class SignupView(APIView):
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request):
-        token = request.GET.get('token')
-        email = request.GET.get('email')
-
+    def get(self, request, uid, token):
         try:
-            user = CustomUser.objects.get(email=email)
-        except CustomUser.DoesNotExist:
-            return Response({"error": "Invalid email"}, status=400)
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = CustomUser.objects.get(pk=user_id)
+        except Exception:
+            return Response({"error": "Invalid user"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if email_verification_token.check_token(user, token):
-            user.is_verified = True
-            user.save()
-            return Response({"message": "Email verified successfully"}, status=200)
+        if not default_token_generator.check_token(user, token):
+            return Response({"error": "Invalid or expired link"}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"error": "Invalid token"}, status=400)
+        user.is_verified = True
+        user.is_active = True
+        user.save()
+
+        return Response({"message": "Email verified successfully"}, status=status.HTTP_200_OK)
 
 
 class LoginView(APIView):
@@ -94,49 +101,190 @@ class LoginView(APIView):
 
         return Response(errors, status=400)
 
-class AdminSignupView(APIView):
-    permission_classes = [IsAuthenticated]
+
+class ForgotPasswordView(APIView):
+    permission_classes = [AllowAny]
 
     def post(self, request):
-        if not request.user.is_admin:
-            return Response({"error": "Only admin can create another admin"}, status=403)
-        serializer = AdminSignupSerializer(data=request.data)
+        email = request.data.get("email")
+
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User not found"}, status=400)
+
+        # 🔐 Generate uid + token
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        # 🔗 Frontend reset link
+        reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
+
+        # 📧 HTML email
+        html_content = render_to_string(
+            'email/reset_password.html',
+            {
+                'user': user,
+                'reset_link': reset_link
+            }
+        )
+
+        email_msg = EmailMultiAlternatives(
+            subject="Reset Your Password - NotesSnipt",
+            body="Reset your password",
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[user.email],
+        )
+
+        email_msg.attach_alternative(html_content, "text/html")
+        email_msg.send()
+
+        return Response({"message": "Reset link sent to your email"})
+
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, uid, token):
+        serializer = ResetPasswordSerializer(data=request.data)
+
         if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "Admin user created"}, status=201)
+            try:
+                user_id = force_str(urlsafe_base64_decode(uid))
+                user = CustomUser.objects.get(pk=user_id)
+            except:
+                return Response({"error": "Invalid user"}, status=400)
+
+            if not default_token_generator.check_token(user, token):
+                return Response({"error": "Invalid or expired link"}, status=400)
+
+            user.set_password(serializer.validated_data['password'])
+            user.save()
+
+            return Response({"message": "Password reset successful"})
+
         return Response(serializer.errors, status=400)
+
+
+#Admin
+
+# class AdminSignupView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         if not request.user.is_admin:
+#             return Response({"error": "Only admin can create another admin"}, status=403)
+#         serializer = AdminSignupSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response({"message": "Admin user created"}, status=201)
+#         return Response(serializer.errors, status=400)
 
 class AdminLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = AdminLoginSerializer(data=request.data)
+
         if serializer.is_valid():
             user = serializer.validated_data
-            token, created = Token.objects.get_or_create(user=user)
-            return Response({"token": token.key}, status=200)
+
+            # 🔐 Token create / get
+            token, _ = Token.objects.get_or_create(user=user)
+
+            return Response(
+                {
+                    "message": "Admin login successful",
+                    "token": token.key,
+                    "email": user.email,
+                    "full_name": user.full_name,
+                    "is_admin": user.is_admin
+                },
+                status=status.HTTP_200_OK
+            )
+        print("ADMIN LOGIN ERROR:", serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminPagination(PageNumberPagination):
+    page_size = 5
+
+class AdminUserListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOnly]
+
+    def get(self, request):
+        users = CustomUser.objects.prefetch_related('notes').all()
+
+        # 🔍 search
+        search = request.GET.get('search')
+        if search:
+            users = users.filter(
+                Q(email__icontains=search) |
+                Q(full_name__icontains=search)
+            )
+
+        paginator = AdminPagination()
+        result_page = paginator.paginate_queryset(users, request)
+
+        serializer = AdminUserSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+    
+class AdminUpdateUserView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOnly]
+
+    def put(self, request, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
+
+        serializer = AdminUserUpdateSerializer(user, data=request.data, partial=True)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "User updated successfully"})
+
         return Response(serializer.errors, status=400)
+    
+    
+class AdminDeleteUserView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOnly]
 
+    def delete(self, request, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
 
-class ForgotPasswordView(APIView):
-    permission_classes = [AllowAny]
+        user.delete()
+        return Response({"message": "User deleted successfully"})
+    
+class AdminUpdateNoteView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOnly]
 
-    def post(self, request):
-        serializer = ForgotPasswordSerializer(data=request.data)
+    def put(self, request, note_id):
+        try:
+            note = Note.objects.get(id=note_id)
+        except Note.DoesNotExist:
+            return Response({"error": "Note not found"}, status=404)
+
+        serializer = AdminNoteUpdateSerializer(note, data=request.data, partial=True)
+
         if serializer.is_valid():
-            return Response({"message": "Email verified. You can now reset your password.","email_verified": True}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            serializer.save()
+            return Response({"message": "Note updated successfully"})
 
+        return Response(serializer.errors, status=400)
+    
 
-class ResetPasswordView(APIView):
-    permission_classes = [AllowAny]
+class AdminDeleteNoteView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOnly]
 
-    def post(self,request):
-        serializer = ResetPasswordSerializer(data=request.dat)
-        if serializer.is_valid():
-            try:
-                serializer.save()
-                return Response({"message": "Password reset successful!"}, status=status.HTTP_200_OK)
-            except CustomUser.DoesNotExist:
-                return Response({"error": "User with this email does not exist."}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def delete(self, request, note_id):
+        try:
+            note = Note.objects.get(id=note_id)
+        except Note.DoesNotExist:
+            return Response({"error": "Note not found"}, status=404)
+
+        note.delete()   # 🔥 HARD DELETE
+
+        return Response({"message": "Note permanently deleted"})

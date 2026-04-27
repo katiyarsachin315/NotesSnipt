@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:0; font-family:Arial, sans-serif; background: linear-gradient(135deg,#dbeafe,#bfdbfe);">
+
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr>
+<td align="center" style="padding:40px 10px;">
+
+  <table width="500" style="background:#ffffff; border-radius:16px; padding:30px; box-shadow:0 10px 30px rgba(0,0,0,0.1);">
+    
+    <!-- Logo -->
+    <tr>
+      <td align="center" style="padding-bottom:10px;">
+        <h2 style="margin:0; color:#2563eb;">📄 NotesSnipt</h2>
+      </td>
+    </tr>
+
+    <!-- Heading -->
+    <tr>
+      <td align="center">
+        <h2 style="margin:10px 0; color:#1e293b;">Welcome to NotesSnipt 👋</h2>
+      </td>
+    </tr>
+
+    <!-- Content -->
+    <tr>
+      <td style="font-size:14px; color:#64748b; line-height:1.6; text-align:center;">
+        Hi <strong>{{ user.full_name }}</strong>,<br><br>
+        You're just one step away from getting started with <b>NotesSnipt</b> 
+        your personal space to save, organize, and access code snippets anytime, anywhere.
+        <br><br>
+        Please confirm your email address to activate your account.
+      </td>
+    </tr>
+
+    <!-- Button -->
+    <tr>
+      <td align="center" style="padding:25px;">
+        <a href="{{ verification_link }}"
+           style="background: linear-gradient(to right,#3b82f6,#6366f1);
+                  color:white;
+                  padding:12px 24px;
+                  border-radius:8px;
+                  text-decoration:none;
+                  font-weight:bold;
+                  display:inline-block;
+                  box-shadow:0 4px 14px rgba(59,130,246,0.4);">
+          Verify Email
+        </a>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td align="center" style="color:#94a3b8; font-size:12px;">
+        This link is valid for a limited time.<br>
+        If you didn’t create an account, you can safely ignore this email.
+      </td>
+    </tr>
+
+  </table>
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>

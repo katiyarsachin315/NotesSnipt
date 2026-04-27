@@ -75,7 +75,7 @@ ROOT_URLCONF = 'NotesSnipt.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -164,3 +164,5 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 # print("EMAIL_HOST:", os.getenv("EMAIL_HOST"))
 # print("EMAIL_USER:", os.getenv("EMAIL_HOST_USER"))
+
+FRONTEND_URL = os.getenv("FRONTEND_URL")
