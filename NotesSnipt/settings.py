@@ -95,14 +95,24 @@ WSGI_APPLICATION = 'NotesSnipt.wsgi.application'
 
 
 # Default SQLite configuration.
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
+# For Neon PostgreSQL configuration,(Neon) uncomment the following and provide your database credentials.
+from decouple import config
+import dj_database_url
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.parse(
+        config('DATABASE_URL')
+    )
 }
 
-# For PostgreSQL configuration, uncomment the following and provide your database credentials.
+# For PostgreSQL configuration, (SuperBase) uncomment the following and provide your database credentials.
 
 # from decouple import config
 

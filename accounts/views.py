@@ -309,3 +309,16 @@ class AdminUserListView(APIView):
         serializer = AdminUserSerializer(result_page, many=True)
         return paginator.get_paginated_response(serializer.data)
 
+
+
+class AdminLogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        # 🔥 Delete current user's token
+        request.user.auth_token.delete()
+
+        return Response({
+            "message": "Logged out successfully"
+        }, status=200)

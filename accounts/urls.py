@@ -13,4 +13,5 @@ urlpatterns = [
     path('admin/users/', AdminUserListView.as_view(), name='admin-users'),
     path('admin/user/<int:user_id>/update/', AdminUpdateUserView.as_view(), name='admin-update-user'),
     path('admin/user/<int:user_id>/delete/', AdminDeleteUserView.as_view(), name='admin-delete-user'),
+    path('admin/logout/', AdminLogoutView.as_view(), name='admin-logout'),
 ]
