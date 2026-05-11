@@ -8,23 +8,35 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import default_token_generator
 from django.template.loader import render_to_string
+from rest_framework.validators import UniqueValidator
+from django.db import transaction
 from notesapp.models import Note
 
 
 class SignupSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(
+        validators=[
+            UniqueValidator(
+                queryset=CustomUser.objects.all(),
+                message="User with this email already exists."
+            )
+        ]
+    )
+
     password = serializers.CharField(write_only=True, min_length=6)
 
     class Meta:
         model = CustomUser
         fields = ['email', 'full_name', 'password']
 
+    @transaction.atomic
     def create(self, validated_data):
         user = CustomUser.objects.create_user(
             email=validated_data['email'],
             full_name=validated_data['full_name'],
             password=validated_data['password'],
             is_verified=False,
-            is_active=False   # 🔥 IMPORTANT
+            is_active=False
         )
 
         # 🔐 Generate uid + token
@@ -51,7 +63,7 @@ class SignupSerializer(serializers.ModelSerializer):
         )
 
         email.attach_alternative(html_content, "text/html")
-        email.send()
+        email.send(fail_silently=False)
 
         return user
 
@@ -60,20 +72,29 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        user = authenticate(
-            email=data['email'],
-            password=data['password']
-        )
 
-        if not user:
-            raise AuthenticationFailed("Invalid email or password")
+        try:
+            user = CustomUser.objects.get(email=data['email'])
+        except CustomUser.DoesNotExist:
+            raise serializers.ValidationError({
+                "error": "Invalid email or password"
+            })
 
+        # 🔐 Password check
+        if not user.check_password(data['password']):
+            raise serializers.ValidationError({
+                "error": "Invalid email or password"
+            })
+
+        # 📧 Email verification check
         if not user.is_verified:
-            raise AuthenticationFailed(
-                "Email is not verified. Verification link has been sent to registerd email."
-            )
+            raise serializers.ValidationError({
+                "email_not_verified":
+                "Email is not verified. Verification email has been sent again."
+            })
 
         return user
+
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
@@ -118,37 +139,29 @@ class AdminLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('Account is inactive')
 
         return user
-
-
-# 🔹 NOTE (for listing)
+    
+# 🔹 NOTE (for listing) Admin
 class AdminNoteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Note
-        fields = ['id', 'title', 'description', 'content', 'created_at']
-
-
-# 🔹 USER (with nested notes)
+        fields = ['id', 'title', 'description', 'content', 'created_at','is_deleted']
+        
+        
 class AdminUserSerializer(serializers.ModelSerializer):
     notes = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'full_name', 'is_verified', 'is_admin', 'notes']
+        fields = ['id', 'email', 'full_name', 'is_verified', 'is_active', 'is_admin', 'notes']
 
     def get_notes(self, obj):
-        notes = obj.notes.filter(is_deleted=False)
+        notes = obj.notes.all()
         return AdminNoteSerializer(notes, many=True).data
-
 
 # 🔹 UPDATE USER
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['full_name', 'is_verified', 'is_admin']
+        fields = ['full_name', 'is_verified', 'is_admin', 'is_active']
 
 
-# 🔹 UPDATE NOTE
-class AdminNoteUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Note
-        fields = ['title', 'description', 'content']

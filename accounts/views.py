@@ -4,11 +4,8 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny,IsAuthenticated
 from rest_framework.authtoken.models import Token
 from accounts.models import CustomUser
-from accounts.serializers import SignupSerializer, LoginSerializer, ResetPasswordSerializer, AdminLoginSerializer, AdminUserSerializer, AdminUserSerializer, AdminUserUpdateSerializer, AdminNoteUpdateSerializer
-from accounts.utils import email_verification_token
-from django.utils import timezone
-from django.urls import reverse
-from django.core.mail import send_mail
+
+from accounts.serializers import SignupSerializer, LoginSerializer, ResetPasswordSerializer, AdminLoginSerializer, AdminUserUpdateSerializer, AdminUserSerializer
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -65,6 +62,7 @@ class LoginView(APIView):
 
         if serializer.is_valid():
             user = serializer.validated_data
+
             token, _ = Token.objects.get_or_create(user=user)
 
             return Response({
@@ -74,32 +72,60 @@ class LoginView(APIView):
                 "token": token.key
             }, status=200)
 
-        # 🔁 HANDLE UNVERIFIED USER
+        # ❌ Login Errors
         errors = serializer.errors
 
+        # 📧 Resend verification email if not verified
         if "email_not_verified" in errors:
             try:
-                user = CustomUser.objects.get(email=request.data.get("email"))
-
-                token = email_verification_token.make_token(user)
-                user.verification_sent_at = timezone.now()
-                user.save()
-
-                verify_url = request.build_absolute_uri(
-                    reverse('verify-email')
-                ) + f"?token={token}"
-
-                send_mail(
-                    subject="Verify your email",
-                    message=f"Click the link to verify your email:\n{verify_url}",
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[user.email],
+                user = CustomUser.objects.get(
+                    email=request.data.get("email")
                 )
+
+                # 🔐 Generate uid + token
+                uid = urlsafe_base64_encode(force_bytes(user.pk))
+                token = default_token_generator.make_token(user)
+
+                # 🔗 SAME verification link as signup
+                verification_link = (
+                    f"{settings.FRONTEND_URL}/verify-email/{uid}/{token}/"
+                )
+
+                # 📧 SAME HTML email as signup
+                html_content = render_to_string(
+                    'email/verify_email.html',
+                    {
+                        'user': user,
+                        'verification_link': verification_link
+                    }
+                )
+
+                email = EmailMultiAlternatives(
+                    subject="Verify Your Email - NotesSnipt",
+                    body="Please verify your email",
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[user.email],
+                )
+
+                email.attach_alternative(html_content, "text/html")
+                email.send(fail_silently=False)
 
             except CustomUser.DoesNotExist:
                 pass
 
         return Response(errors, status=400)
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        # 🔥 Delete current user's token
+        request.user.auth_token.delete()
+
+        return Response({
+            "message": "Logged out successfully"
+        }, status=200)
 
 
 class ForgotPasswordView(APIView):
@@ -166,19 +192,6 @@ class ResetPasswordView(APIView):
 
 
 #Admin
-
-# class AdminSignupView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         if not request.user.is_admin:
-#             return Response({"error": "Only admin can create another admin"}, status=403)
-#         serializer = AdminSignupSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response({"message": "Admin user created"}, status=201)
-#         return Response(serializer.errors, status=400)
-
 class AdminLoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -204,16 +217,84 @@ class AdminLoginView(APIView):
         print("ADMIN LOGIN ERROR:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    
+class AdminUpdateUserView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOnly]
 
+    def put(self, request, user_id):
+
+        try:
+            user = CustomUser.objects.get(id=user_id)
+
+        except CustomUser.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=404
+            )
+
+        # 🔥 Prevent updating admin users
+        if user.is_admin:
+            return Response(
+                {"error": "Admin users cannot be updated."},
+                status=403
+            )
+
+        serializer = AdminUserUpdateSerializer(
+            user,
+            data=request.data,
+            partial=True
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+
+            return Response({
+                "message": "User updated successfully"
+            })
+
+        return Response(
+            serializer.errors,
+            status=400
+        )
+    
+    
+class AdminDeleteUserView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOnly]
+
+    def delete(self, request, user_id):
+
+        try:
+            user = CustomUser.objects.get(id=user_id)
+
+        except CustomUser.DoesNotExist:
+            return Response(
+                {"error": "User not found"},
+                status=404
+            )
+
+        # 🔥 Prevent deleting admin users
+        if user.is_admin:
+            return Response(
+                {"error": "Admin users cannot be deleted."},
+                status=403
+            )
+
+        user.delete()
+
+        return Response({
+            "message": "User deleted successfully"
+        })
+    
 class AdminPagination(PageNumberPagination):
-    page_size = 5
+    page_size = 20
 
 class AdminUserListView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOnly]
 
     def get(self, request):
-        users = CustomUser.objects.prefetch_related('notes').all()
-
+        # users = CustomUser.objects.prefetch_related('notes').all().order_by('-id')
+        users = CustomUser._base_manager.prefetch_related('notes').all().order_by('-id')
+        # print("ALL USERS:", users)
         # 🔍 search
         search = request.GET.get('search')
         if search:
@@ -224,67 +305,7 @@ class AdminUserListView(APIView):
 
         paginator = AdminPagination()
         result_page = paginator.paginate_queryset(users, request)
-
+        # print("PAGINATED USERS:", result_page)
         serializer = AdminUserSerializer(result_page, many=True)
         return paginator.get_paginated_response(serializer.data)
-    
-class AdminUpdateUserView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOnly]
 
-    def put(self, request, user_id):
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({"error": "User not found"}, status=404)
-
-        serializer = AdminUserUpdateSerializer(user, data=request.data, partial=True)
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "User updated successfully"})
-
-        return Response(serializer.errors, status=400)
-    
-    
-class AdminDeleteUserView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOnly]
-
-    def delete(self, request, user_id):
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({"error": "User not found"}, status=404)
-
-        user.delete()
-        return Response({"message": "User deleted successfully"})
-    
-class AdminUpdateNoteView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOnly]
-
-    def put(self, request, note_id):
-        try:
-            note = Note.objects.get(id=note_id)
-        except Note.DoesNotExist:
-            return Response({"error": "Note not found"}, status=404)
-
-        serializer = AdminNoteUpdateSerializer(note, data=request.data, partial=True)
-
-        if serializer.is_valid():
-            serializer.save()
-            return Response({"message": "Note updated successfully"})
-
-        return Response(serializer.errors, status=400)
-    
-
-class AdminDeleteNoteView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminOnly]
-
-    def delete(self, request, note_id):
-        try:
-            note = Note.objects.get(id=note_id)
-        except Note.DoesNotExist:
-            return Response({"error": "Note not found"}, status=404)
-
-        note.delete()   # 🔥 HARD DELETE
-
-        return Response({"message": "Note permanently deleted"})

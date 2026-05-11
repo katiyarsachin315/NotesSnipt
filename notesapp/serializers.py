@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from notesapp.models import Note
-
+from accounts.models import CustomUser
 
 class NoteSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
@@ -48,3 +48,10 @@ class NoteSerializer(serializers.Serializer):
         return instance
     
     
+#ADMIN SERIALIZERS
+
+# 🔹 UPDATE NOTE
+class AdminNoteUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Note
+        fields = ['title', 'description', 'content', 'is_deleted']
